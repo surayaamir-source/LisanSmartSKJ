@@ -502,7 +502,8 @@ function isGoogleSheetsConfigured() {
 }
 
 /**
- * Kaedah sandaran iframe + postMessage jika JSONP tidak tersedia.
+ * Ambil data melalui JSONP. Apps Script memulangkan JavaScript callback
+ * dan kaedah ini serasi dengan GitHub Pages, Safari, Chrome dan Chromebook.
  */
 function loadFromAppsScriptViaIframe(action, onData, onError) {
     if (!isGoogleSheetsConfigured()) {
@@ -511,16 +512,18 @@ function loadFromAppsScriptViaIframe(action, onData, onError) {
         return;
     }
 
-    const requestId = 'lisanSmart_' + action + '_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.setAttribute('aria-hidden', 'true');
-
+    const callbackName = 'lisanSmart_' + action + '_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
     let finished = false;
+    let timeoutId = null;
 
     const cleanup = () => {
-        window.removeEventListener('message', handleMessage);
-        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        if (timeoutId) clearTimeout(timeoutId);
+        if (script.parentNode) script.parentNode.removeChild(script);
+        // Beri masa kepada Safari menyelesaikan callback sebelum dibersihkan.
+        setTimeout(() => {
+            try { delete window[callbackName]; } catch (_) {}
+        }, 1000);
     };
 
     const fail = (error) => {
@@ -530,44 +533,32 @@ function loadFromAppsScriptViaIframe(action, onData, onError) {
         if (onError) onError(error);
     };
 
-    const handleMessage = (event) => {
-        const msg = event.data;
-
-        if (!msg || msg.source !== 'LISANSMART_APPS_SCRIPT' || msg.requestId !== requestId) {
+    window[callbackName] = (data) => {
+        if (finished) return;
+        if (data && data.__lisanSmartError) {
+            fail(new Error(data.__lisanSmartError));
             return;
         }
-
-        if (event.source !== iframe.contentWindow) {
-            return;
-        }
-
-        if (msg.success) {
-            finished = true;
-            cleanup();
-            if (onData) onData(msg.data);
-        } else {
-            fail(new Error(msg.message || 'Apps Script gagal memproses permintaan.'));
-        }
+        finished = true;
+        cleanup();
+        if (onData) onData(data);
     };
 
-    window.addEventListener('message', handleMessage);
-
-    iframe.src =
+    script.src =
         GOOGLE_APPS_SCRIPT_URL +
         '?action=' + encodeURIComponent(action) +
-        '&requestId=' + encodeURIComponent(requestId) +
+        '&callback=' + encodeURIComponent(callbackName) +
         '&t=' + Date.now();
 
-    iframe.onerror = () => fail(new Error('Gagal memuatkan Apps Script.'));
+    script.onerror = () => fail(new Error('Gagal memuatkan Apps Script melalui JSONP.'));
+    document.head.appendChild(script);
 
-    document.body.appendChild(iframe);
-
-    // Elak aplikasi menunggu selama-lamanya.
-    setTimeout(() => {
+    // Safari kadangkala mengambil masa kerana redirect Apps Script.
+    timeoutId = setTimeout(() => {
         if (!finished) {
             fail(new Error('Masa menunggu Apps Script tamat.'));
         }
-    }, 8000);
+    }, 30000);
 }
 
 
@@ -624,12 +615,6 @@ function loadStudentsFromGoogleSheets() {
 
 
 function loadMaterialsFromGoogleSheets() {
-    const callbackName =
-      'lisanSmartMaterials_' + Date.now() + '_' +
-      Math.random().toString(36).slice(2);
-    const script = document.createElement('script');
-    let finished = false;
-
     const applyMaterials = (serverMaterials) => {
         if (!Array.isArray(serverMaterials) || serverMaterials.length === 0) {
           console.warn('LisanSmart: BAHAN_BACAAN kosong. Bahan lalai dikekalkan.');
@@ -654,53 +639,17 @@ function loadMaterialsFromGoogleSheets() {
         );
     };
 
-    const cleanup = () => {
-      clearTimeout(timeoutId);
-      delete window[callbackName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    };
-
-    const fallbackToIframe = (reason) => {
-      if (finished) return;
-      finished = true;
-      cleanup();
-      console.warn('JSONP bahan gagal, cuba iframe:', reason);
-      loadFromAppsScriptViaIframe(
-        'getMaterials',
-        applyMaterials,
-        (error) => {
+    loadFromAppsScriptViaIframe(
+      'getMaterials',
+      applyMaterials,
+      (error) => {
         console.error('Gagal mendapatkan BAHAN_BACAAN:', error);
         alertModal(
           'Bahan bacaan belum dapat dimuatkan daripada Google Sheets. ' +
-          'Bahan lalai digunakan sementara.'
+          'Sila semak internet dan cuba Refresh.'
         );
-        }
-      );
-    };
-
-    window[callbackName] = (serverMaterials) => {
-      if (finished) return;
-      if (serverMaterials && serverMaterials.__lisanSmartError) {
-        fallbackToIframe(serverMaterials.__lisanSmartError);
-        return;
       }
-      finished = true;
-      cleanup();
-      applyMaterials(serverMaterials);
-    };
-
-    script.onerror = () => fallbackToIframe('Script JSONP gagal dimuatkan.');
-    script.src =
-      GOOGLE_APPS_SCRIPT_URL +
-      '?action=getMaterials' +
-      '&callback=' + encodeURIComponent(callbackName) +
-      '&t=' + Date.now();
-
-    const timeoutId = setTimeout(() => {
-      fallbackToIframe('Masa menunggu JSONP tamat.');
-    }, 8000);
-
-    document.head.appendChild(script);
+    );
 }
 
 
