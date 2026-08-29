@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intervensi Bacaan Digital - Aplikasi Membaca Interaktif</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Fredoka & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        fredoka: ['Fredoka', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            400: '#38bdf8',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7fe;
+        }
+        .heading-font {
+            font-family: 'Fredoka', sans-serif;
+        }
+        .word-chip {
+            transition: all 0.2s ease;
+            display: inline-block;
+            padding: 4px 8px;
+            margin: 3px 2px;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            line-height: 2.2rem;
+            font-weight: 600;
+        }
+        .word-pending {
+            background-color: #f1f5f9;
+            color: #475569;
+            border: 2px solid #e2e8f0;
+        }
+        .word-active {
+            background-color: #fef08a;
+            color: #854d0e;
+            border: 2px solid #eab308;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);
+        }
+        .word-correct {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 2px solid #22c55e;
+        }
+        .word-incorrect {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 2px solid #ef4444;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Pulse Animation for Mic */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .mic-recording {
+            animation: pulse-ring 1.5s infinite ease-in-out;
+            background-color: #ef4444 !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col justify-between select-none">
+
+    <!-- Header Navbar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <!-- App Logo & Title -->
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="showScreen('selection-screen')">
+                <div class="w-10 h-10 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md">
+                    <i class="fa-solid fa-book-open-reader text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="heading-font text-xl md:text-2xl font-bold tracking-wide text-slate-800 flex items-center gap-2">
+                        Intervensi <span class="text-sky-600">Bacaan Digital</span>
+                        <span class="bg-amber-100 text-amber-700 text-[10px] md:text-xs px-2 py-0.5 rounded-full font-bold">BM</span>
+                    </h1>
+                </div>
+            </div>
+
+            <!-- Student Selection Dropdown & Stars Badge -->
+            <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <!-- Dropdown Pilih Murid -->
+                <div class="flex items-center gap-2 bg-sky-50 border border-sky-200 px-3 py-1.5 rounded-xl shadow-sm">
+                    <i class="fa-solid fa-user-graduate text-sky-600 text-sm"></i>
+                    <label for="student-select" class="sr-only">Pilih Murid</label>
+                    <select id="student-select" onchange="handleStudentChange(this.value)" class="bg-transparent text-xs sm:text-sm font-bold text-sky-900 focus:outline-none cursor-pointer pr-1">
+                        <!-- Options populated via JS -->
+                    </select>
+                </div>
+
+                <!-- Nama Guru -->
+                <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl shadow-sm">
+                    <i class="fa-solid fa-chalkboard-user text-emerald-600 text-sm"></i>
+                    <label for="teacher-name" class="sr-only">Nama Guru</label>
+                    <input id="teacher-name" type="text" placeholder="Nama guru"
+                        class="bg-transparent text-xs sm:text-sm font-bold text-emerald-900 focus:outline-none w-28 sm:w-36"
+                        onchange="saveTeacherName(this.value)">
+                </div>
+
+                <!-- Star Score Badge -->
+                <div class="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-bold shadow-sm">
+                    <i class="fa-solid fa-star text-amber-500 text-base"></i>
+                    <span id="total-stars">0</span> Bintang
+                </div>
+
+                <button onclick="openCustomTextModal()" class="hidden md:flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition">
+                    <i class="fa-solid fa-plus text-sky-600"></i> Tambah Teks Ciptaan
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full">
+
+        <!-- SCREEN 1: BAHAN BACAAN (SELECTION SCREEN) -->
+        <section id="selection-screen" class="space-y-6">
+            <!-- Hero Banner -->
+            <div class="bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 rounded-3xl p-6 md:p-8 text-white shadow-lg relative overflow-hidden">
+                <div class="relative z-10 max-w-xl space-y-3">
+                    <span class="bg-white/20 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-2">
+                        <span>Selamat Datang <strong id="hero-student-name" class="underline underline-offset-2">Murid</strong>! 🌟</span>
+                    </span>
+                    <h2 class="heading-font text-3xl md:text-4xl font-bold leading-tight">Pilih Bahan Bacaan & Mula Membaca Hari Ini</h2>
+                    <p class="text-sky-100 text-sm md:text-base">Tekan mana-mana petikan di bawah, kemudian gunakan mikrofon untuk membaca. Sistem akan mengesan kelancaran sebutan anda secara langsung!</p>
+                </div>
+                <!-- Decorative Icon -->
+                <i class="fa-solid fa-microphone-lines absolute -right-6 -bottom-6 text-9xl text-white/10 rotate-12"></i>
+            </div>
+
+            <!-- Category & Level Filters -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-slate-200 pb-4">
+                <div class="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
+                    <button onclick="filterMaterials('all', this)" class="filter-btn active bg-sky-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition">Semua</button>
+                    <button onclick="filterMaterials('tahap1', this)" class="filter-btn bg-white text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 transition">Tahap 1 (Mudah)</button>
+                    <button onclick="filterMaterials('tahap2', this)" class="filter-btn bg-white text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 transition">Tahap 2 (Sederhana)</button>
+                    <button onclick="filterMaterials('tahap3', this)" class="filter-btn bg-white text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 transition">Tahap 3 (Mencabar)</button>
+                </div>
+                <button onclick="openCustomTextModal()" class="md:hidden w-full flex items-center justify-center gap-2 bg-sky-50 text-sky-700 border border-sky-200 px-4 py-2 rounded-xl text-sm font-semibold">
+                    <i class="fa-solid fa-plus"></i> Tambah Teks Ciptaan
+                </button>
+            </div>
+
+            <!-- Reading Materials Grid -->
+            <div id="materials-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Cards will be populated by JavaScript -->
+            </div>
+        </section>
+
+        <!-- SCREEN 2: BILIK BACAAN (READING ROOM SCREEN) -->
+        <section id="reading-screen" class="hidden space-y-6">
+            <!-- Top Control Bar -->
+            <div class="flex flex-wrap items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm gap-3">
+                <button onclick="showScreen('selection-screen')" class="flex items-center gap-2 text-slate-600 hover:text-sky-600 font-semibold text-sm transition">
+                    <i class="fa-solid fa-arrow-left text-lg"></i> Kembali ke Senarai
+                </button>
+                <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <span class="bg-purple-100 text-purple-700 text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1.5">
+                        <i class="fa-solid fa-user text-purple-600"></i>
+                        <span id="reading-student-name">Murid</span>
+                    </span>
+                    <span id="reading-level-tag" class="bg-sky-100 text-sky-700 text-xs px-3 py-1 rounded-full font-bold">Tahap 1</span>
+                    <div class="flex items-center gap-1.5 text-slate-500 text-sm font-medium bg-slate-100 px-3 py-1 rounded-full">
+                        <i class="fa-regular fa-clock text-sky-600"></i>
+                        <span id="timer-display">00:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Reading Card -->
+            <div class="bg-white rounded-3xl p-6 md:p-10 border border-slate-200 shadow-xl space-y-6 relative overflow-hidden">
+                <!-- Material Info -->
+                <div class="flex justify-between items-start border-b border-slate-100 pb-4">
+                    <div>
+                        <h2 id="reading-title" class="heading-font text-2xl md:text-3xl font-bold text-slate-800">Tajuk Petikan</h2>
+                        <p class="text-xs md:text-sm text-slate-500 mt-1">Sila baca teks di bawah berpandukan mikrofon.</p>
+                    </div>
+                    <!-- Audio Listen Demo Button -->
+                    <button id="btn-listen-all" onclick="speakFullText()" class="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs md:text-sm font-semibold transition">
+                        <i class="fa-solid fa-volume-high text-indigo-600"></i> Dengar Sebutan
+                    </button>
+                </div>
+
+                <!-- Interactive Text Container -->
+                <div id="text-display-container" class="min-h-[180px] p-6 bg-slate-50 rounded-2xl border border-slate-200 leading-relaxed text-left flex flex-wrap content-start items-center">
+                    <!-- Words injected here -->
+                </div>
+
+                <!-- Speech Status & Live Feedback -->
+                <div class="bg-sky-50 border border-sky-100 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div id="mic-status-icon" class="w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-microphone-slash"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 font-medium">Status Pengesanan Voice:</p>
+                            <p id="mic-status-text" class="text-sm font-bold text-slate-700">Sedia untuk membaca</p>
+                        </div>
+                    </div>
+                    <!-- Live Transcript snippet -->
+                    <div class="text-right w-full sm:w-auto">
+                        <span class="text-xs text-slate-400 block">Sebutan Dikesan:</span>
+                        <span id="live-transcript" class="text-xs italic font-semibold text-slate-600 max-w-xs truncate block">-</span>
+                    </div>
+                </div>
+
+                <!-- Control Buttons Bar -->
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                    <button id="btn-start-reading" onclick="toggleReadingSession()" class="w-full sm:w-auto min-w-[200px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transition transform active:scale-95 flex items-center justify-center gap-3 text-lg">
+                        <i class="fa-solid fa-microphone text-xl"></i>
+                        <span id="btn-read-text">Mula Membaca</span>
+                    </button>
+
+                    <button onclick="resetCurrentReading()" class="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-6 rounded-2xl transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> Semula
+                    </button>
+
+                    <!-- Toggle Simulation Mode for testing if mic is not available -->
+                    <button id="btn-sim-mode" onclick="toggleSimulateReading()" class="hidden text-xs text-slate-400 hover:text-slate-600 underline">
+                        [Simulasi Pembacaan]
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- RESULT EVALUATION MODAL -->
+    <div id="result-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-slate-100 space-y-6 transform transition-all scale-95 opacity-0" id="result-modal-content">
+            
+            <div class="text-center space-y-2">
+                <div class="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto text-4xl shadow-inner">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <h3 class="heading-font text-3xl font-bold text-slate-800">Tahniah, <span id="res-student-name" class="text-sky-600">Murid</span>!</h3>
+                <p class="text-sm text-slate-500">Anda telah selesai membaca petikan ini dengan cemerlang.</p>
+            </div>
+
+            <!-- Star Rating Display -->
+            <div class="flex justify-center items-center gap-3 text-4xl text-amber-400" id="stars-result-container">
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+            </div>
+
+            <!-- Score Stats Grid -->
+            <div class="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
+                <div>
+                    <span class="text-xs text-slate-400 block font-medium">Ketepatan</span>
+                    <span id="res-accuracy" class="text-xl font-bold text-emerald-600">0%</span>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block font-medium">Masa</span>
+                    <span id="res-time" class="text-xl font-bold text-sky-600">0s</span>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block font-medium">Kelajuan</span>
+                    <span id="res-wpm" class="text-xl font-bold text-indigo-600">0 WPM</span>
+                </div>
+            </div>
+
+            <!-- Words to Practice List -->
+            <div class="space-y-2">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Perkataan Perlu Ditingkatkan:</h4>
+                <div id="res-mispronounced-list" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 bg-red-50/50 rounded-xl border border-red-100">
+                    <span class="text-xs text-emerald-600 italic">Tiada! Sebutan anda sangat sempurna! 👏</span>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center gap-3 pt-2">
+                <button onclick="closeResultModal(); showScreen('selection-screen');" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition">
+                    Pilih Petikan Lain
+                </button>
+                <button onclick="closeResultModal(); resetCurrentReading();" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl shadow-md transition">
+                    Cuba Lagi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOM TEXT INPUT MODAL -->
+    <div id="custom-text-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="heading-font text-xl font-bold text-slate-800">Tambah Bahan Bacaan Sendiri</h3>
+                <button onclick="closeCustomTextModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tajuk Petikan</label>
+                    <input type="text" id="custom-input-title" placeholder="Contoh: Kucing Saya" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tahap Bacaan</label>
+                    <select id="custom-input-level" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:outline-none text-sm">
+                        <option value="tahap1">Tahap 1 (Mudah)</option>
+                        <option value="tahap2">Tahap 2 (Sederhana)</option>
+                        <option value="tahap3">Tahap 3 (Mencabar)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Fokus</label>
+                    <input type="text" id="custom-input-focus" placeholder="Contoh: KVKV / Ayat mudah / Petikan" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Kandungan Teks</label>
+                    <textarea id="custom-input-text" rows="5" placeholder="Masukkan teks bacaan di sini..." class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:outline-none text-sm"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="closeCustomTextModal()" class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-semibold text-sm">Batal</button>
+                <button onclick="saveCustomMaterial()" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm shadow">Simpan & Baca</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+        <p>LisanSmart © 2026 - Aplikasi Pembelajaran Membaca Interaktif Bahasa Melayu Sekolah Rendah</p>
+    </footer>
+
+    <script>
+        // KOD JAVASCRIPT YANG TELAH DIBETULKAN
+        const DEFAULT_STUDENTS = [
+            { id: 'std-1', name: 'AISYAH ADAWIYYAH BINTI ISMAIL', stars: 0 },
+            { id: 'std-2', name: 'MAHAMAD SHAKIR BIN HAYAZI', stars: 0 },
+            { id: 'std-3', name: 'MUHAMMAD AMIR ZAFRAN BIN MOHD ROSHIDI', stars: 0 },
+            { id: 'std-4', name: 'MUHAMMAD AQIF FIRDAUS BIN MOHD SHAHRIZAT', stars: 0 },
+            { id: 'std-5', name: 'MUHAMMAD ZAFRIL ZAFRAN BIN MOHD NAZRI', stars: 0 },
+            { id: 'std-6', name: 'NADIA AZZAHRA BINTI MOHAMMAD FADZIL', stars: 0 },
+            { id: 'std-7', name: 'SITI NUR AMIRA QAIRINA BINTI ISMAIL', stars: 0 },
+            { id: 'std-8', name: 'AHMAD QAIRY HAIKAL BIN AHMAD SAFIEE', stars: 0 },
+            { id: 'std-9', name: 'CHE ADAM BIN MOHD ALI JINNAH', stars: 0 },
+            { id: 'std-10', name: 'MUHAMAD THAQIF NAUFAL BIN ABD RAZAK', stars: 0 },
+            { id: 'std-11', name: 'MUHAMMAD AISH UBAIDAH BIN ASMADI', stars: 0 },
+            { id: 'std-12', name: 'MUHAMMAD AQIL RAYYAN BIN MOHAMAD SAFFRI', stars: 0 },
+            { id: 'std-13', name: 'MUHAMMAD AZROY MALIK MIKAIL BIN MOHAMMAD AZROY AZHIM', stars: 0 },
+            { id: 'std-14', name: 'MUHAMMAD HARRAZ IQBAL BIN NOOR ZAID', stars: 0 },
+            { id: 'std-15', name: 'MUHAMMAD ISA BIN MUHAMAD ADAM', stars: 0 },
+            { id: 'std-16', name: 'MUHAMMAD SIDDIQ BIN MOHD ZAMRI', stars: 0 },
+            { id: 'std-17', name: 'MUHAMMAD ZAIM AMSYAR BIN MOHD NAZIB', stars: 0 },
+            { id: 'std-18', name: 'MUHAMMAD ZIQIR ZULKARNAIN BIN SOLAHUDDIN', stars: 0 },
+            { id: 'std-19', name: 'NUR AINI FATIHAH BINTI MOHD. FARID', stars: 0 },
+            { id: 'std-20', name: 'NUR ALEEYA BATRISYA BINTI MAT JOHARI', stars: 0 },
+            { id: 'std-21', name: 'PUTERI FARAH DAYANA BINTI MUHAMMAD MUHYEDDIN', stars: 0 },
+            { id: 'std-22', name: 'SITI NURAMIRAH ZAHIRA BINTI SHAHIZAM', stars: 0 }
+        ];
+        
+        function loadStudents() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('lisansmart_students'));
+                if (Array.isArray(saved) && saved.length) {
+                    return saved;
+                }
+            } catch (error) {
+                console.warn('Gagal membaca data murid:', error);
+            }
+            return DEFAULT_STUDENTS.map(s => ({ ...s }));
+        }
+        
+        let studentsList = loadStudents();
+        let currentStudentId = localStorage.getItem('lisansmart_active_student') || studentsList[0]?.id || null;
+        
+        const defaultMaterials = [
+            {
+                id: 'mat-1',
+                title: 'Sang Kucing yang Comel',
+                level: 'tahap1',
+                levelLabel: 'Tahap 1 (Mudah)',
+                icon: 'fa-cat',
+                color: 'from-amber-400 to-orange-500',
+                text: 'Saya ada seekor kucing. Nama kucing saya Comel. Comel suka makan ikan dan minum susu. Hari-hari Comel bermain bola di halaman rumah.'
+            },
+            {
+                id: 'mat-2',
+                title: 'Budi Pak Cik Mat',
+                level: 'tahap1',
+                levelLabel: 'Tahap 1 (Mudah)',
+                icon: 'fa-seedling',
+                color: 'from-emerald-400 to-teal-600',
+                text: 'Pak Cik Mat ada sebuah dusun buah. Dia menanam pokok rambutan dan durian. Pokok rambutan Pak Cik Mat berbuah lebat dan manis sekali.'
+            },
+            {
+                id: 'mat-3',
+                title: 'Faedah Membaca Buku',
+                level: 'tahap2',
+                levelLabel: 'Tahap 2 (Sederhana)',
+                icon: 'fa-book-bookmark',
+                color: 'from-sky-400 to-indigo-600',
+                text: 'Membaca buku ialah amalan yang sangat mulia. Membaca dapat menambah ilmu pengetahuan kita. Murid yang rajin membaca akan menjadi pandai dan berjaya dalam pelajaran.'
+            },
+            {
+                id: 'mat-4',
+                title: 'Melawat ke Zoo Negara',
+                level: 'tahap2',
+                levelLabel: 'Tahap 2 (Sederhana)',
+                icon: 'fa-hippo',
+                color: 'from-purple-400 to-pink-600',
+                text: 'Pada hari Ahad yang lalu, kami melawat ke Zoo Negara. Di sana kami dapat melihat gajah, harimau dan monyet. Saya merasa sangat gembira kerana dapat belajar tentang haiwan.'
+            },
+            {
+                id: 'mat-5',
+                title: 'Keindahan Pulau Tioman',
+                level: 'tahap3',
+                levelLabel: 'Tahap 3 (Mencabar)',
+                icon: 'fa-umbrella-beach',
+                color: 'from-cyan-500 to-blue-600',
+                text: 'Pulau Tioman terkenal dengan keindahan pantai dan air laut yang jernih. Ramai pelancong datang untuk menyelam dan menikmati pemandangan batu karang yang berwarna-warni.'
+            },
+            {
+                id: 'mat-6',
+                title: 'Pantun Budi dan Bahasa',
+                level: 'tahap3',
+                levelLabel: 'Tahap 3 (Mencabar)',
+                icon: 'fa-feather-pointed',
+                color: 'from-rose-400 to-red-600',
+                text: 'Yang kurik itu kundi, yang merah itu saga. Yang baik itu budi, yang indah itu bahasa. Sentiasa berbuat baik kepada sesama manusia.'
+            }
+        ];
+        
+        let materials = [...defaultMaterials];
+        let currentMaterial = null;
+        let wordsList = [];
+        let currentWordIndex = 0;
+        let isReading = false;
+        let speechRecognition = null;
+        let timerInterval = null;
+        let secondsElapsed = 0;
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            loadTeacherName();
+            renderStudentDropdown();
+            updateActiveStudentUI();
+            renderMaterialsGrid(materials);
+            initSpeechRecognition();
+            loadStudentsFromGoogleSheets();
+            loadMaterialsFromGoogleSheets();
+        });
+        
+        const GOOGLE_SHEETS_MODE = true;
+
+// Masukkan URL Web App Google Apps Script selepas deployment.
+const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxBgoOKfpvF3v5JcG1PZO74sLuHrangNA1V1z91QWA/exec';
+
+function loadTeacherName() {
+    const input = document.getElementById('teacher-name');
+    if (input) input.value = localStorage.getItem('lisansmart_teacher_name') || '';
+}
+
+function saveTeacherName(value) {
+    localStorage.setItem('lisansmart_teacher_name', (value || '').trim());
+}
+
+function isGoogleSheetsConfigured() {
+    return GOOGLE_APPS_SCRIPT_URL &&
+           GOOGLE_APPS_SCRIPT_URL.startsWith('https://script.google.com/');
+}
+
+/**
+ * Kaedah sandaran iframe + postMessage jika JSONP tidak tersedia.
+ */
+function loadFromAppsScriptViaIframe(action, onData, onError) {
+    if (!isGoogleSheetsConfigured()) {
+        console.warn('URL Google Apps Script belum dimasukkan.');
+        if (onError) onError(new Error('URL Google Apps Script belum dikonfigurasi.'));
+        return;
+    }
+
+    const requestId = 'lisanSmart_' + action + '_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
+
+    let finished = false;
+
+    const cleanup = () => {
+        window.removeEventListener('message', handleMessage);
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    };
+
+    const fail = (error) => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        if (onError) onError(error);
+    };
+
+    const handleMessage = (event) => {
+        const msg = event.data;
+
+        if (!msg || msg.source !== 'LISANSMART_APPS_SCRIPT' || msg.requestId !== requestId) {
+            return;
+        }
+
+        if (event.source !== iframe.contentWindow) {
+            return;
+        }
+
+        if (msg.success) {
+            finished = true;
+            cleanup();
+            if (onData) onData(msg.data);
+        } else {
+            fail(new Error(msg.message || 'Apps Script gagal memproses permintaan.'));
+        }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    iframe.src =
+        GOOGLE_APPS_SCRIPT_URL +
+        '?action=' + encodeURIComponent(action) +
+        '&requestId=' + encodeURIComponent(requestId) +
+        '&t=' + Date.now();
+
+    iframe.onerror = () => fail(new Error('Gagal memuatkan Apps Script.'));
+
+    document.body.appendChild(iframe);
+
+    // Elak aplikasi menunggu selama-lamanya.
+    setTimeout(() => {
+        if (!finished) {
+            fail(new Error('Masa menunggu Apps Script tamat.'));
+        }
+    }, 8000);
+}
+
+
+/**
+ * Ambil senarai murid daripada Google Sheets.
+ * Menggunakan iframe + postMessage, bukan JSONP.
+ */
+function loadStudentsFromGoogleSheets() {
+    loadFromAppsScriptViaIframe(
+        'getStudents',
+        (serverStudents) => {
+            if (Array.isArray(serverStudents) && serverStudents.length) {
+                studentsList = serverStudents.map(s => ({
+                    id: String(s.id),
+                    name: String(s.name),
+                    className: String(s.className || ''),
+                    stars: Number(s.stars || 0)
+                }));
+
+                if (!studentsList.some(s => s.id === currentStudentId)) {
+                    currentStudentId = studentsList[0].id;
+                }
+
+                localStorage.setItem(
+                    'lisansmart_students',
+                    JSON.stringify(studentsList)
+                );
+
+                renderStudentDropdown();
+                updateActiveStudentUI();
+                console.log(
+                    'LisanSmart: ' +
+                    studentsList.length +
+                    ' murid dimuatkan daripada Google Sheets.'
+                );
+            } else {
+                console.warn('Tiada murid aktif ditemui dalam sheet MURID.');
+                alertModal('Tiada murid aktif ditemui dalam sheet MURID.');
+            }
+        },
+        (error) => {
+            console.error('Gagal mendapatkan senarai murid:', error);
+            // Kekalkan data localStorage jika ada.
+            console.warn('LisanSmart menggunakan senarai murid yang tersimpan pada peranti.');
+        }
+    );
+}
+
+
+/**
+ * Ambil bank bahan bacaan daripada Google Sheets.
+ * Menggunakan iframe + postMessage, bukan JSONP.
+ */
+
+
+function loadMaterialsFromGoogleSheets() {
+    const callbackName =
+      'lisanSmartMaterials_' + Date.now() + '_' +
+      Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    let finished = false;
+
+    const applyMaterials = (serverMaterials) => {
+        if (!Array.isArray(serverMaterials) || serverMaterials.length === 0) {
+          console.warn('LisanSmart: BAHAN_BACAAN kosong. Bahan lalai dikekalkan.');
+          return;
+        }
+
+        materials = serverMaterials.map(m => ({
+            id: String(m.id || ''),
+            title: String(m.title || ''),
+            level: String(m.level || 'tahap1'),
+            levelLabel: String(m.levelLabel || 'Tahap 1 (Mudah)'),
+            focus: String(m.focus || ''),
+            icon: String(m.icon || 'fa-book-open'),
+            color: String(m.color || 'from-sky-400 to-indigo-600'),
+            text: String(m.text || '')
+        })).filter(m => m.id && m.title && m.text);
+
+        renderMaterialsGrid(materials);
+        console.log(
+          'LisanSmart: ' + materials.length +
+          ' bahan dimuatkan daripada BAHAN_BACAAN Google Sheets.'
+        );
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    const fallbackToIframe = (reason) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      console.warn('JSONP bahan gagal, cuba iframe:', reason);
+      loadFromAppsScriptViaIframe(
+        'getMaterials',
+        applyMaterials,
+        (error) => {
+        console.error('Gagal mendapatkan BAHAN_BACAAN:', error);
+        alertModal(
+          'Bahan bacaan belum dapat dimuatkan daripada Google Sheets. ' +
+          'Bahan lalai digunakan sementara.'
+        );
+        }
+      );
+    };
+
+    window[callbackName] = (serverMaterials) => {
+      if (finished) return;
+      if (serverMaterials && serverMaterials.__lisanSmartError) {
+        fallbackToIframe(serverMaterials.__lisanSmartError);
+        return;
+      }
+      finished = true;
+      cleanup();
+      applyMaterials(serverMaterials);
+    };
+
+    script.onerror = () => fallbackToIframe('Script JSONP gagal dimuatkan.');
+    script.src =
+      GOOGLE_APPS_SCRIPT_URL +
+      '?action=getMaterials' +
+      '&callback=' + encodeURIComponent(callbackName) +
+      '&t=' + Date.now();
+
+    const timeoutId = setTimeout(() => {
+      fallbackToIframe('Masa menunggu JSONP tamat.');
+    }, 8000);
+
+    document.head.appendChild(script);
+}
+
+
+function saveMaterialToGoogleSheets(material, teacherName) {
+    if (!isGoogleSheetsConfigured()) {
+        alertModal('URL Google Apps Script belum dikonfigurasi. Bahan tidak dihantar.');
+        return;
+    }
+
+    const iframeName = 'lisanSmartMaterialFrame_' + Date.now();
+    const iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GOOGLE_APPS_SCRIPT_URL;
+    form.target = iframeName;
+    form.style.display = 'none';
+
+    const payload = {
+        action: 'saveMaterial',
+        id: material.id || '',
+        title: material.title || '',
+        level: material.level || 'tahap1',
+        levelLabel: material.levelLabel || 'Tahap 1 (Mudah)',
+        focus: material.focus || '',
+        text: material.text || '',
+        status: 'Aktif',
+        icon: material.icon || 'fa-book-open',
+        color: material.color || 'from-sky-400 to-indigo-600',
+        teacherName: teacherName || ''
+    };
+
+    Object.entries(payload).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = String(value);
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+
+    try {
+        form.submit();
+        alertModal('✅ Bahan baharu dihantar ke Google Sheets.');
+    } catch (error) {
+        console.error('Gagal menghantar bahan:', error);
+        alertModal('❌ Bahan baharu gagal dihantar.');
+    }
+
+    setTimeout(() => {
+        form.remove();
+        iframe.remove();
+    }, 5000);
+}
+
+function saveStudentToGoogleSheets(student) {
+    if (!isGoogleSheetsConfigured()) {
+        alertModal('URL Google Apps Script belum dikonfigurasi. Murid tidak dihantar.');
+        return;
+    }
+
+    const iframeName = 'lisanSmartStudentFrame_' + Date.now();
+    const iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GOOGLE_APPS_SCRIPT_URL;
+    form.target = iframeName;
+    form.style.display = 'none';
+
+    const payload = {
+        action: 'saveStudent',
+        id: student.id || '',
+        name: student.name || '',
+        className: student.className || '',
+        status: 'Aktif',
+        stars: Number(student.stars || 0)
+    };
+
+    Object.entries(payload).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = String(value);
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+
+    try {
+        form.submit();
+        alertModal('✅ Murid baharu dihantar ke Google Sheets.');
+    } catch (error) {
+        console.error('Gagal menghantar murid:', error);
+        alertModal('❌ Murid baharu gagal dihantar.');
+    }
+
+    setTimeout(() => {
+        form.remove();
+        iframe.remove();
+    }, 5000);
+}
+
+function saveReadingRecordToGoogleSheets(record) {
+    if (!isGoogleSheetsConfigured()) {
+        alertModal('URL Google Apps Script belum dikonfigurasi. Rekod tidak dihantar.');
+        return;
+    }
+
+    const iframeName = 'lisanSmartSubmitFrame_' + Date.now();
+
+    const iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GOOGLE_APPS_SCRIPT_URL;
+    form.target = iframeName;
+    form.style.display = 'none';
+
+    const payload = {
+        action: 'saveReading',
+        studentId: record.studentId || '',
+        studentName: record.studentName || '',
+        teacherName: record.teacherName || '',
+        materialId: record.materialId || '',
+        materialTitle: record.materialTitle || '',
+        accuracy: record.accuracy || 0,
+        correctWords: record.correctWords || 0,
+        totalWords: record.totalWords || 0,
+        incorrectWords: record.incorrectWords || 0,
+        wpm: record.wpm || 0,
+        seconds: record.seconds || 0,
+        stars: record.stars || 0,
+        spokenTarget: record.spokenTarget || '',
+        errors: record.errors || ''
+    };
+
+    Object.entries(payload).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = String(value);
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+
+    try {
+        form.submit();
+        alertModal('✅ Rekod bacaan telah dihantar ke Google Sheets.');
+    } catch (error) {
+        console.error('Gagal menghantar rekod:', error);
+        alertModal('❌ Rekod gagal dihantar.');
+    }
+
+    setTimeout(() => {
+        form.remove();
+        iframe.remove();
+    }, 5000);
+}
+
+function renderStudentDropdown() {
+            const selectEl = document.getElementById('student-select');
+            if (!selectEl) return;
+        
+            selectEl.innerHTML = '';
+        
+            studentsList.forEach(std => {
+                const option = document.createElement('option');
+                option.value = std.id;
+                option.textContent = std.name;
+                option.selected = std.id === currentStudentId;
+                selectEl.appendChild(option);
+            });
+        
+            const addOption = document.createElement('option');
+            addOption.value = 'ADD_NEW';
+            addOption.textContent = '➕ Urus murid di Google Sheets';
+            selectEl.appendChild(addOption);
+        
+            if (!studentsList.some(s => s.id === currentStudentId)) {
+                currentStudentId = studentsList[0]?.id || null;
+                if (currentStudentId) selectEl.value = currentStudentId;
+            }
+        }
+        
+        function handleStudentChange(value) {
+            if (value === 'ADD_NEW') {
+                const newName = prompt('Sila masukkan nama murid baharu:');
+                if (newName && newName.trim()) {
+                    const newClass = prompt('Sila masukkan kelas murid:') || '';
+                    const newStudent = {
+                        id: 'std-' + Date.now(),
+                        name: newName.trim(),
+                        className: newClass.trim(),
+                        stars: 0
+                    };
+                    studentsList.push(newStudent);
+                    currentStudentId = newStudent.id;
+                    localStorage.setItem('lisansmart_students', JSON.stringify(studentsList));
+                    saveStudentToGoogleSheets(newStudent);
+                }
+                renderStudentDropdown();
+            } else if (value) {
+                currentStudentId = value;
+            }
+        
+            if (currentStudentId) {
+                localStorage.setItem('lisansmart_active_student', currentStudentId);
+            }
+            updateActiveStudentUI();
+        }
+        
+        function getActiveStudent() {
+            return studentsList.find(s => s.id === currentStudentId) || studentsList[0] || null;
+        }
+        
+        function updateActiveStudentUI() {
+            const student = getActiveStudent();
+            const name = student ? student.name : 'Murid';
+            const stars = student ? (student.stars || 0) : 0;
+        
+            const totalStars = document.getElementById('total-stars');
+            const heroName = document.getElementById('hero-student-name');
+            const readingName = document.getElementById('reading-student-name');
+            const resultName = document.getElementById('res-student-name');
+        
+            if (totalStars) totalStars.innerText = stars;
+            if (heroName) heroName.innerText = name;
+            if (readingName) readingName.innerText = name;
+            if (resultName) resultName.innerText = name;
+        }
+        
+        function updateStarDisplay() {
+            updateActiveStudentUI();
+        }
+        
+        function renderMaterialsGrid(list) {
+            const grid = document.getElementById('materials-grid');
+            if (!grid) return;
+        
+            grid.innerHTML = '';
+        
+            if (!list || list.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-200">
+                        <i class="fa-solid fa-book-open text-4xl text-slate-300 mb-3"></i>
+                        <p class="text-slate-500 font-semibold">Tiada bahan bacaan untuk kategori ini.</p>
+                    </div>`;
+                return;
+            }
+        
+            list.forEach(material => {
+                const card = document.createElement('article');
+                card.className = 'bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-200 cursor-pointer';
+        
+                card.innerHTML = `
+                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-r ${material.color}
+                                text-white flex items-center justify-center text-2xl mb-4 shadow-sm">
+                        <i class="fa-solid ${material.icon}"></i>
+                    </div>
+        
+                    <span class="inline-block text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg">
+                        ${material.levelLabel}
+                    </span>
+        
+                    <h3 class="heading-font text-xl font-bold text-slate-800 mt-3">
+                        ${escapeHtml(material.title)}
+                    </h3>
+        
+                    <p class="text-sm text-slate-500 mt-2 line-clamp-3">
+                        ${escapeHtml(material.text)}
+                    </p>
+        
+                    <button
+                        type="button"
+                        onclick="selectMaterial('${material.id}')"
+                        class="w-full mt-5 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition">
+                        <i class="fa-solid fa-book-open mr-2"></i>
+                        Baca Sekarang
+                    </button>
+                `;
+        
+                card.addEventListener('click', event => {
+                    if (!event.target.closest('button')) {
+                        selectMaterial(material.id);
+                    }
+                });
+        
+                grid.appendChild(card);
+            });
+        }
+        
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+        
+        function filterMaterials(level, button) {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-sky-600', 'text-white');
+                btn.classList.add('bg-white', 'text-slate-600');
+            });
+        
+            if (button) {
+                button.classList.remove('bg-white', 'text-slate-600');
+                button.classList.add('bg-sky-600', 'text-white');
+            }
+        
+            if (level === 'all') {
+                renderMaterialsGrid(materials);
+            } else {
+                renderMaterialsGrid(materials.filter(m => m.level === level));
+            }
+        }
+        
+        function showScreen(screenId) {
+            document.getElementById('selection-screen')?.classList.add('hidden');
+            document.getElementById('reading-screen')?.classList.add('hidden');
+            document.getElementById(screenId)?.classList.remove('hidden');
+        
+            if (screenId === 'selection-screen') {
+                stopReadingSession();
+            }
+        }
+        
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+            if (!SpeechRecognition) {
+                console.warn('Web Speech API tidak disokong dalam browser ini.');
+                const status = document.getElementById('mic-status-text');
+                const sim = document.getElementById('btn-sim-mode');
+                if (status) status.innerText = 'Mikrofon/Speech Recognition tidak disokong. Gunakan browser yang menyokong Web Speech API.';
+                if (sim) sim.classList.remove('hidden');
+                return;
+            }
+        
+            speechRecognition = new SpeechRecognition();
+            speechRecognition.continuous = true;
+            speechRecognition.interimResults = true;
+            speechRecognition.lang = 'ms-MY';
+            speechRecognition.maxAlternatives = 3;
+        
+            speechRecognition.onstart = () => {
+                setMicStatusUI(true, 'Sedang Mendengar Sebutan Anda...');
+            };
+        
+            speechRecognition.onresult = event => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+        
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const piece = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += piece + ' ';
+                    } else {
+                        interimTranscript += piece;
+                    }
+                }
+        
+                const liveText = (finalTranscript + interimTranscript).trim();
+                const live = document.getElementById('live-transcript');
+                if (live) live.innerText = liveText ? `"${liveText}"` : '-';
+        
+                processSpokenText(liveText);
+            };
+        
+            speechRecognition.onerror = event => {
+                console.error('Speech recognition error:', event.error);
+        
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    setMicStatusUI(false, 'Kebenaran mikrofon ditolak. Sila benarkan mikrofon.');
+                } else if (event.error === 'no-speech') {
+                    setMicStatusUI(false, 'Tiada suara dikesan. Cuba baca dengan lebih jelas.');
+                } else {
+                    setMicStatusUI(false, 'Gagal mengesan suara. Sila cuba lagi.');
+                }
+            };
+        
+            speechRecognition.onend = () => {
+                if (isReading && currentWordIndex < wordsList.length) {
+                    setTimeout(() => {
+                        if (!isReading) return;
+                        try {
+                            speechRecognition.start();
+                        } catch (error) {
+                            console.warn('Speech restart:', error);
+                        }
+                    }, 150);
+                } else if (!isReading) {
+                    setMicStatusUI(false, 'Sedia untuk membaca');
+                }
+            };
+        }
+        
+        function selectMaterial(id) {
+            currentMaterial = materials.find(m => m.id === id);
+            if (!currentMaterial) return;
+        
+            stopReadingSession();
+        
+            document.getElementById('reading-title').innerText = currentMaterial.title;
+            document.getElementById('reading-level-tag').innerText = currentMaterial.levelLabel;
+        
+            const rawWords = currentMaterial.text.trim().split(/\s+/);
+            wordsList = rawWords.map((word, idx) => ({
+                id: idx,
+                original: word,
+                clean: cleanWord(word),
+                status: 'pending'
+            }));
+        
+            currentWordIndex = 0;
+            secondsElapsed = 0;
+        
+            renderInteractiveText();
+            document.getElementById('timer-display').innerText = '00:00';
+            document.getElementById('live-transcript').innerText = '-';
+            showScreen('reading-screen');
+        }
+        
+        function cleanWord(word) {
+            return word
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9']/gi, '');
+        }
+        
+        function renderInteractiveText() {
+            const container = document.getElementById('text-display-container');
+            if (!container) return;
+        
+            container.innerHTML = '';
+        
+            wordsList.forEach((item, index) => {
+                let statusClass = 'word-pending';
+        
+                if (index === currentWordIndex && isReading) {
+                    statusClass = 'word-active';
+                } else if (item.status === 'correct') {
+                    statusClass = 'word-correct';
+                } else if (item.status === 'incorrect') {
+                    statusClass = 'word-incorrect';
+                }
+        
+                const wordEl = document.createElement('span');
+                wordEl.id = `word-${index}`;
+                wordEl.className = `word-chip ${statusClass} cursor-pointer hover:opacity-80`;
+                wordEl.innerText = item.original;
+                wordEl.onclick = () => speakSingleWord(item.original);
+        
+                container.appendChild(wordEl);
+            });
+        }
+        
+        function processSpokenText(spokenPhrase) {
+            if (!isReading || currentWordIndex >= wordsList.length) return;
+        
+            const spokenWords = spokenPhrase
+                .toLowerCase()
+                .split(/\s+/)
+                .map(cleanWord)
+                .filter(Boolean);
+        
+            if (!spokenWords.length) return;
+        
+            // Padanan terhadap perkataan sasaran semasa.
+            // Elak memproses semula perkataan yang sama berulang kali.
+            const recentWords = spokenWords.slice(-5);
+        
+            for (const spoken of recentWords) {
+                const target = wordsList[currentWordIndex];
+                if (!target) break;
+        
+                if (isMatch(spoken, target.clean)) {
+                    target.status = 'correct';
+                    playAudioFeedback(true);
+                    currentWordIndex++;
+                    renderInteractiveText();
+                    scrollToActiveWord();
+        
+                    if (currentWordIndex >= wordsList.length) {
+                        completeReadingSession();
+                        break;
+                    }
+                }
+            }
+        }
+        
+        function levenshteinDistance(a, b) {
+            const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
+        
+            for (let j = 0; j <= a.length; j++) {
+                matrix[0][j] = j;
+            }
+        
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    matrix[i][j] = b[i - 1] === a[j - 1]
+                        ? matrix[i - 1][j - 1]
+                        : Math.min(
+                            matrix[i - 1][j] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j - 1] + 1
+                        );
+                }
+            }
+        
+            return matrix[b.length][a.length];
+        }
+        
+        function isMatch(spoken, target) {
+            if (!spoken || !target) return false;
+            if (spoken === target) return true;
+        
+            if (spoken.length >= 3 && target.length >= 3) {
+                if (spoken.startsWith(target) || target.startsWith(spoken)) return true;
+        
+                const distance = levenshteinDistance(spoken, target);
+                const maxDistance = target.length >= 7 ? 2 : 1;
+        
+                if (distance <= maxDistance) return true;
+            }
+        
+            return false;
+        }
+        
+        function scrollToActiveWord() {
+            const activeEl = document.getElementById(`word-${currentWordIndex}`);
+            if (activeEl) {
+                activeEl.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'center'
+                });
+            }
+        }
+        
+        function toggleReadingSession() {
+            if (isReading) {
+                stopReadingSession();
+            } else {
+                startReadingSession();
+            }
+        }
+        
+        function startReadingSession() {
+            if (!currentMaterial || !wordsList.length) return;
+        
+            isReading = true;
+        
+            const btnText = document.getElementById('btn-read-text');
+            const btn = document.getElementById('btn-start-reading');
+        
+            if (btnText) btnText.innerText = 'Hentikan Membaca';
+        
+            if (btn) {
+                btn.classList.remove('from-emerald-500', 'to-teal-600');
+                btn.classList.add('from-rose-500', 'to-red-600', 'mic-recording');
+            }
+        
+            if (currentWordIndex >= wordsList.length) {
+                currentWordIndex = 0;
+                wordsList.forEach(w => w.status = 'pending');
+            }
+        
+            renderInteractiveText();
+            startTimer();
+        
+            if (speechRecognition) {
+                try {
+                    speechRecognition.start();
+                } catch (error) {
+                    console.warn('Speech start:', error);
+                }
+            } else {
+                setMicStatusUI(true, 'Mod Simulasi Aktif');
+                document.getElementById('btn-sim-mode')?.classList.remove('hidden');
+            }
+        }
+        
+        function stopReadingSession() {
+            isReading = false;
+        
+            const btnText = document.getElementById('btn-read-text');
+            const btn = document.getElementById('btn-start-reading');
+        
+            if (btnText) btnText.innerText = 'Mula Membaca';
+        
+            if (btn) {
+                btn.classList.remove('from-rose-500', 'to-red-600', 'mic-recording');
+                btn.classList.add('from-emerald-500', 'to-teal-600');
+            }
+        
+            stopTimer();
+        
+            if (speechRecognition) {
+                try {
+                    speechRecognition.stop();
+                } catch (error) {}
+            }
+        
+            setMicStatusUI(false, 'Sedia untuk membaca');
+            renderInteractiveText();
+        }
+        
+        function resetCurrentReading() {
+            stopReadingSession();
+            currentWordIndex = 0;
+            secondsElapsed = 0;
+        
+            const timer = document.getElementById('timer-display');
+            const live = document.getElementById('live-transcript');
+        
+            if (timer) timer.innerText = '00:00';
+            if (live) live.innerText = '-';
+        
+            wordsList.forEach(w => w.status = 'pending');
+            renderInteractiveText();
+        }
+        
+        function setMicStatusUI(active, message) {
+            const iconContainer = document.getElementById('mic-status-icon');
+            const statusText = document.getElementById('mic-status-text');
+        
+            if (statusText) statusText.innerText = message;
+        
+            if (!iconContainer) return;
+        
+            if (active) {
+                iconContainer.className = 'w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg animate-pulse';
+                iconContainer.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            } else {
+                iconContainer.className = 'w-10 h-10 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-lg';
+                iconContainer.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
+            }
+        }
+        
+        function startTimer() {
+            stopTimer();
+            secondsElapsed = 0;
+        
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+        
+                const mins = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+                const secs = (secondsElapsed % 60).toString().padStart(2, '0');
+        
+                const timer = document.getElementById('timer-display');
+                if (timer) timer.innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+        
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+        
+        function completeReadingSession() {
+            stopReadingSession();
+        
+            const totalWords = wordsList.length;
+            const correctWords = wordsList.filter(w => w.status === 'correct').length;
+            const accuracy = totalWords ? Math.round((correctWords / totalWords) * 100) : 0;
+        
+            const minutes = Math.max(secondsElapsed / 60, 0.05);
+            const wpm = Math.round(correctWords / minutes);
+        
+            let stars = 1;
+            if (accuracy >= 85) stars = 3;
+            else if (accuracy >= 60) stars = 2;
+        
+            const activeStudent = getActiveStudent();
+        
+            if (activeStudent) {
+                activeStudent.stars = (activeStudent.stars || 0) + stars;
+                localStorage.setItem('lisansmart_students', JSON.stringify(studentsList));
+                updateActiveStudentUI();
+            }
+        
+            document.getElementById('res-accuracy').innerText = `${accuracy}%`;
+            document.getElementById('res-time').innerText = `${secondsElapsed}s`;
+            document.getElementById('res-wpm').innerText = `${wpm}`;
+            document.getElementById('res-student-name').innerText = activeStudent?.name || 'Murid';
+        
+            const starsContainer = document.getElementById('stars-result-container');
+            if (starsContainer) {
+                starsContainer.innerHTML = '';
+                for (let i = 1; i <= 3; i++) {
+                    starsContainer.innerHTML += i <= stars
+                        ? '<i class="fa-solid fa-star text-amber-400"></i>'
+                        : '<i class="fa-regular fa-star text-slate-300"></i>';
+                }
+            }
+        
+            const mispronouncedContainer = document.getElementById('res-mispronounced-list');
+            const incorrectList = wordsList.filter(w => w.status !== 'correct');
+        
+            if (mispronouncedContainer) {
+                mispronouncedContainer.innerHTML = '';
+        
+                if (!incorrectList.length) {
+                    mispronouncedContainer.innerHTML =
+                        '<span class="text-xs text-emerald-600 italic font-semibold">Tiada! Sebutan anda sangat sempurna! 👏</span>';
+                } else {
+                    incorrectList.forEach(w => {
+                        const badge = document.createElement('span');
+                        badge.className = 'text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-lg border border-red-200 cursor-pointer font-semibold flex items-center gap-1 hover:bg-red-200';
+                        badge.innerHTML = `${escapeHtml(w.original)} <i class="fa-solid fa-volume-high text-[10px]"></i>`;
+                        badge.onclick = () => speakSingleWord(w.original);
+                        mispronouncedContainer.appendChild(badge);
+                    });
+                }
+            }
+        
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+
+            // HANTAR REKOD KE GOOGLE SHEETS
+            // Bahagian ini sebelum ini tertinggal: function penghantaran wujud,
+            // tetapi tidak pernah dipanggil apabila bacaan selesai.
+            const teacherName = (document.getElementById('teacher-name')?.value || '').trim();
+            const incorrectWords = wordsList
+                .filter(w => w.status !== 'correct')
+                .map(w => w.original)
+                .join(', ');
+
+            saveReadingRecordToGoogleSheets({
+                studentId: activeStudent?.id || currentStudentId || '',
+                studentName: activeStudent?.name || '',
+                teacherName: teacherName,
+                materialId: currentMaterial?.id || '',
+                materialTitle: currentMaterial?.title || '',
+                accuracy: accuracy,
+                correctWords: correctWords,
+                totalWords: totalWords,
+                incorrectWords: totalWords - correctWords,
+                wpm: wpm,
+                seconds: secondsElapsed,
+                stars: stars,
+                spokenTarget: currentMaterial?.text || '',
+                errors: incorrectWords
+            });
+
+            openResultModal();
+        }
+        
+        function openResultModal() {
+            const modal = document.getElementById('result-modal');
+            const content = document.getElementById('result-modal-content');
+        
+            if (!modal || !content) return;
+        
+            modal.classList.remove('hidden');
+        
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+        
+        function closeResultModal() {
+            const modal = document.getElementById('result-modal');
+            const content = document.getElementById('result-modal-content');
+        
+            if (!modal || !content) return;
+        
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+        
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+        
+        function speakSingleWord(text) {
+            if (!('speechSynthesis' in window)) return;
+        
+            window.speechSynthesis.cancel();
+        
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ms-MY';
+            utterance.rate = 0.8;
+        
+            window.speechSynthesis.speak(utterance);
+        }
+        
+        function speakFullText() {
+            if (!currentMaterial || !('speechSynthesis' in window)) return;
+        
+            window.speechSynthesis.cancel();
+        
+            const utterance = new SpeechSynthesisUtterance(currentMaterial.text);
+            utterance.lang = 'ms-MY';
+            utterance.rate = 0.85;
+        
+            window.speechSynthesis.speak(utterance);
+        }
+        
+        function playAudioFeedback(isCorrect) {
+            if (!isCorrect) return;
+        
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+        
+                const ctx = new AudioContextClass();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+        
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+        
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+                osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+        
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.25);
+        
+                setTimeout(() => ctx.close?.(), 400);
+            } catch (error) {
+                console.warn('Audio feedback tidak tersedia:', error);
+            }
+        }
+        
+        function openCustomTextModal() {
+            document.getElementById('custom-text-modal')?.classList.remove('hidden');
+        }
+        
+        function closeCustomTextModal() {
+            document.getElementById('custom-text-modal')?.classList.add('hidden');
+        }
+        
+        function saveCustomMaterial() {
+            const titleInput = document.getElementById('custom-input-title');
+            const levelInput = document.getElementById('custom-input-level');
+            const focusInput = document.getElementById('custom-input-focus');
+            const textInput = document.getElementById('custom-input-text');
+
+            const title = titleInput?.value.trim();
+            const level = levelInput?.value || 'tahap1';
+            const focus = focusInput?.value.trim() || '';
+            const text = textInput?.value.trim();
+            const teacherName = (document.getElementById('teacher-name')?.value || '').trim();
+
+            if (!title || !text) {
+                alertModal('Sila isi tajuk dan kandungan teks.');
+                return;
+            }
+
+            const levelMap = {
+                tahap1: 'Tahap 1 (Mudah)',
+                tahap2: 'Tahap 2 (Sederhana)',
+                tahap3: 'Tahap 3 (Mencabar)'
+            };
+
+            const newMat = {
+                id: 'mat-' + Date.now(),
+                title,
+                level,
+                levelLabel: levelMap[level] || 'Tahap 1 (Mudah)',
+                focus,
+                icon: 'fa-pen-to-square',
+                color: 'from-pink-500 to-rose-600',
+                text
+            };
+
+            // Paparkan terus pada peranti semasa.
+            materials.unshift(newMat);
+            renderMaterialsGrid(materials);
+
+            // Simpan ke bank pusat Google Sheets.
+            saveMaterialToGoogleSheets(newMat, teacherName);
+
+            closeCustomTextModal();
+
+            if (titleInput) titleInput.value = '';
+            if (focusInput) focusInput.value = '';
+            if (textInput) textInput.value = '';
+
+            selectMaterial(newMat.id);
+        }
+
+        function alertModal(msg) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-5 right-5 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-xl z-50 text-sm flex items-center gap-2';
+            toast.innerHTML = `<i class="fa-solid fa-circle-info text-sky-400"></i> ${escapeHtml(msg)}`;
+            document.body.appendChild(toast);
+        
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        function toggleSimulateReading() {
+            if (!isReading) return;
+        
+            if (currentWordIndex < wordsList.length) {
+                const target = wordsList[currentWordIndex];
+                target.status = 'correct';
+                playAudioFeedback(true);
+                currentWordIndex++;
+        
+                renderInteractiveText();
+                scrollToActiveWord();
+        
+                if (currentWordIndex >= wordsList.length) {
+                    completeReadingSession();
+                }
+            }
+        }
+        
+    </script>
+</body>
+</html>
