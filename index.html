@@ -502,8 +502,9 @@ function isGoogleSheetsConfigured() {
 }
 
 /**
- * Ambil data melalui JSONP. Apps Script memulangkan JavaScript callback
- * dan kaedah ini serasi dengan GitHub Pages, Safari, Chrome dan Chromebook.
+ * Ambil data melalui iframe + postMessage. Apps Script membuat redirect ke
+ * googleusercontent.com, jadi mesej disahkan melalui origin Google,
+ * requestId unik dan penanda LISANSMART_APPS_SCRIPT.
  */
 function loadFromAppsScriptViaIframe(action, onData, onError) {
     if (!isGoogleSheetsConfigured()) {
@@ -512,18 +513,17 @@ function loadFromAppsScriptViaIframe(action, onData, onError) {
         return;
     }
 
-    const callbackName = 'lisanSmart_' + action + '_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    const script = document.createElement('script');
+    const requestId = 'lisanSmart_' + action + '_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
     let finished = false;
     let timeoutId = null;
 
     const cleanup = () => {
         if (timeoutId) clearTimeout(timeoutId);
-        if (script.parentNode) script.parentNode.removeChild(script);
-        // Beri masa kepada Safari menyelesaikan callback sebelum dibersihkan.
-        setTimeout(() => {
-            try { delete window[callbackName]; } catch (_) {}
-        }, 1000);
+        window.removeEventListener('message', handleMessage);
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
     };
 
     const fail = (error) => {
@@ -533,27 +533,43 @@ function loadFromAppsScriptViaIframe(action, onData, onError) {
         if (onError) onError(error);
     };
 
-    window[callbackName] = (data) => {
-        if (finished) return;
-        if (data && data.__lisanSmartError) {
-            fail(new Error(data.__lisanSmartError));
+    const handleMessage = (event) => {
+        const origin = String(event.origin || '');
+        const isGoogleOrigin =
+            origin === 'https://script.google.com' ||
+            origin.endsWith('.googleusercontent.com');
+        const msg = event.data;
+
+        if (!isGoogleOrigin ||
+            !msg ||
+            msg.source !== 'LISANSMART_APPS_SCRIPT' ||
+            msg.action !== action ||
+            msg.requestId !== requestId) {
             return;
         }
+
+        if (!msg.success) {
+            fail(new Error(msg.message || 'Apps Script gagal memproses permintaan.'));
+            return;
+        }
+
         finished = true;
         cleanup();
-        if (onData) onData(data);
+        if (onData) onData(msg.data);
     };
 
-    script.src =
+    window.addEventListener('message', handleMessage);
+
+    iframe.src =
         GOOGLE_APPS_SCRIPT_URL +
         '?action=' + encodeURIComponent(action) +
-        '&callback=' + encodeURIComponent(callbackName) +
+        '&requestId=' + encodeURIComponent(requestId) +
         '&t=' + Date.now();
 
-    script.onerror = () => fail(new Error('Gagal memuatkan Apps Script melalui JSONP.'));
-    document.head.appendChild(script);
+    iframe.onerror = () => fail(new Error('Gagal memuatkan jambatan Apps Script.'));
+    document.body.appendChild(iframe);
 
-    // Safari kadangkala mengambil masa kerana redirect Apps Script.
+    // Elak aplikasi menunggu selama-lamanya.
     timeoutId = setTimeout(() => {
         if (!finished) {
             fail(new Error('Masa menunggu Apps Script tamat.'));
