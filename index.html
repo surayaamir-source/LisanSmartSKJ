@@ -502,9 +502,8 @@ function isGoogleSheetsConfigured() {
 }
 
 /**
- * Ambil data melalui iframe + postMessage. Apps Script membuat redirect ke
- * googleusercontent.com, jadi mesej disahkan melalui origin Google,
- * requestId unik dan penanda LISANSMART_APPS_SCRIPT.
+ * Ambil data melalui JSONP daripada deployment Apps Script awam.
+ * Ini mengelakkan sekatan CORS dan lapisan iframe Google Apps Script.
  */
 function loadFromAppsScriptViaIframe(action, onData, onError) {
     if (!isGoogleSheetsConfigured()) {
@@ -513,17 +512,17 @@ function loadFromAppsScriptViaIframe(action, onData, onError) {
         return;
     }
 
-    const requestId = 'lisanSmart_' + action + '_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.setAttribute('aria-hidden', 'true');
+    const callbackName = 'lisanSmart_' + action + '_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
     let finished = false;
     let timeoutId = null;
 
     const cleanup = () => {
         if (timeoutId) clearTimeout(timeoutId);
-        window.removeEventListener('message', handleMessage);
-        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        if (script.parentNode) script.parentNode.removeChild(script);
+        setTimeout(() => {
+            try { delete window[callbackName]; } catch (_) {}
+        }, 1000);
     };
 
     const fail = (error) => {
@@ -533,41 +532,25 @@ function loadFromAppsScriptViaIframe(action, onData, onError) {
         if (onError) onError(error);
     };
 
-    const handleMessage = (event) => {
-        const origin = String(event.origin || '');
-        const isGoogleOrigin =
-            origin === 'https://script.google.com' ||
-            origin.endsWith('.googleusercontent.com');
-        const msg = event.data;
-
-        if (!isGoogleOrigin ||
-            !msg ||
-            msg.source !== 'LISANSMART_APPS_SCRIPT' ||
-            msg.action !== action ||
-            msg.requestId !== requestId) {
+    window[callbackName] = (data) => {
+        if (finished) return;
+        if (data && data.__lisanSmartError) {
+            fail(new Error(data.__lisanSmartError));
             return;
         }
-
-        if (!msg.success) {
-            fail(new Error(msg.message || 'Apps Script gagal memproses permintaan.'));
-            return;
-        }
-
         finished = true;
         cleanup();
-        if (onData) onData(msg.data);
+        if (onData) onData(data);
     };
 
-    window.addEventListener('message', handleMessage);
-
-    iframe.src =
+    script.src =
         GOOGLE_APPS_SCRIPT_URL +
         '?action=' + encodeURIComponent(action) +
-        '&requestId=' + encodeURIComponent(requestId) +
+        '&callback=' + encodeURIComponent(callbackName) +
         '&t=' + Date.now();
 
-    iframe.onerror = () => fail(new Error('Gagal memuatkan jambatan Apps Script.'));
-    document.body.appendChild(iframe);
+    script.onerror = () => fail(new Error('Gagal memuatkan JSONP Apps Script.'));
+    document.head.appendChild(script);
 
     // Elak aplikasi menunggu selama-lamanya.
     timeoutId = setTimeout(() => {
